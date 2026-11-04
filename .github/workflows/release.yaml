@@ -1,0 +1,192 @@
+name: Release
+
+# Releasing is chained to CI rather than to the push itself: the workflow merges
+# its own release pull request, so a green main is the only thing standing
+# between a commit and a published image and chart. A red main releases nothing.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # release-please reads Conventional Commit messages since the last release and
+  # opens a pull request containing the version bump and the generated CHANGELOG:
+  # fix -> patch, feat -> minor, ! or BREAKING CHANGE -> major. That pull request
+  # is merged here rather than by hand, so a push to main releases itself.
+  release-please:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    # workflow_run fires whatever CI concluded, so the conclusion is checked
+    # here. A manual dispatch is taken at its word.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      # The release can be created by either release-please run: the first when
+      # the pull request was merged by hand, the second when this job merged it.
+      released: ${{ steps.release.outputs.release_created == 'true' || steps.tag.outputs.release_created == 'true' }}
+      tag: ${{ steps.tag.outputs.tag_name || steps.release.outputs.tag_name }}
+      version: ${{ steps.tag.outputs.version || steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # The release pull request only ever contains the version bump and the
+      # CHANGELOG, both generated from commits CI already ran on, so there is
+      # nothing left to review. Waiting for a human just delays the image.
+      #
+      # The pull request is looked up with gh rather than read out of
+      # release-please's pr output: that output is present but empty on the runs
+      # with nothing to release, and parsing it in an expression fails the
+      # workflow at template time, before any if: can skip the step.
+      - name: Merge the release pull request
+        id: merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # This job never checks out, so gh has no repository to infer.
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,headRefName \
+                 --jq '[.[] | select(.headRefName | startswith("release-please--"))][0].number')
+          if [ -z "$pr" ] || [ "$pr" = "null" ]; then
+            echo "no release pull request open; nothing to merge"
+            exit 0
+          fi
+          gh pr merge --repo "$GITHUB_REPOSITORY" --squash --delete-branch "$pr"
+          echo "merged=true" >>"$GITHUB_OUTPUT"
+
+      # A merge made with GITHUB_TOKEN raises no push event, by design, so this
+      # workflow will not run again for it. release-please is re-run here instead:
+      # it now sees the release commit on main and creates the tag and release
+      # that the publish job below builds from.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        id: tag
+        if: steps.merge.outputs.merged == 'true'
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    name: Publish image
+    needs: release-please
+    if: needs.release-please.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      # Required for the build provenance attestation below.
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          # A released image gets the exact version, the moving major and
+          # major.minor tags, and latest.
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.tag }}
+            type=semver,pattern={{major}},value=${{ needs.release-please.outputs.tag }}
+            type=raw,value=latest
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Lets a consumer verify the image really came from this workflow.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+  publish-chart:
+    name: Publish chart
+    # After the image, so a published chart never points at a missing image.
+    needs: [release-please, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      CHART_DIR: deploy/cert-manager-porkbun-webhook
+      VERSION: ${{ needs.release-please.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.1
+
+      # release-please bumps Chart.yaml in the release commit; refuse to publish
+      # a chart whose version disagrees with the tag.
+      - name: Check chart version
+        run: |
+          chart_version=$(yq '.version' "$CHART_DIR/Chart.yaml")
+          app_version=$(yq '.appVersion' "$CHART_DIR/Chart.yaml")
+          if [ "$chart_version" != "$VERSION" ] || [ "$app_version" != "$VERSION" ]; then
+            echo "Chart.yaml has version=$chart_version appVersion=$app_version, release is $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Package and push
+        id: push
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # OCI repository names must be lowercase.
+          repo="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts"
+          echo "$REGISTRY_PASSWORD" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          helm package "$CHART_DIR" --destination dist
+          helm push "dist/cert-manager-porkbun-webhook-$VERSION.tgz" "oci://$repo" 2>&1 | tee push.log
+          digest=$(grep -o 'sha256:[a-f0-9]\{64\}' push.log | head -n1)
+          if [ -z "$digest" ]; then
+            echo "could not read the pushed chart digest" >&2
+            exit 1
+          fi
+          echo "name=$repo/cert-manager-porkbun-webhook" >>"$GITHUB_OUTPUT"
+          echo "digest=$digest" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-name: ${{ steps.push.outputs.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

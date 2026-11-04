@@ -1,0 +1,13 @@
+.git
+.github
+.gitignore
+.golangci.yml
+Dockerfile
+deploy
+hack
+LICENSE
+Makefile
+*.md
+_bin
+_out
+webhook

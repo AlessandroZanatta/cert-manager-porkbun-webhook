@@ -1,41 +1,61 @@
-OS ?= $(shell go env GOOS)
-ARCH ?= $(shell go env GOARCH)
+# Kubernetes version of the envtest control plane used by the conformance
+# suite: the minor of the k8s.io/api module in go.mod (v0.36.2 -> 1.36.x).
+ENVTEST_K8S_VERSION ?= $(shell go list -m -f '{{.Version}}' k8s.io/api | sed -E 's/^v0\.([0-9]+)\..*/1.\1.x/')
+# renovate: datasource=go depName=sigs.k8s.io/controller-runtime/tools/setup-envtest
+SETUP_ENVTEST_VERSION ?= v0.25.2
+# renovate: datasource=go depName=github.com/golangci/golangci-lint/v2
+GOLANGCI_LINT_VERSION ?= v2.15.0
 
-IMAGE_NAME := "porkbun-webhook"
-IMAGE_TAG := "latest"
+# renovate: datasource=docker depName=helmunittest/helm-unittest
+HELM_UNITTEST_VERSION ?= 4.3.0-1.2.1
+HELM_UNITTEST_IMAGE := helmunittest/helm-unittest:$(HELM_UNITTEST_VERSION)
 
-OUT := $(shell pwd)/_out
+IMAGE ?= ghcr.io/alessandrozanatta/cert-manager-porkbun-webhook:dev
+CHART := deploy/cert-manager-porkbun-webhook
+BIN := $(CURDIR)/_bin
 
-KUBE_VERSION=1.30.0
+ENVTEST_ASSETS = $(shell go run sigs.k8s.io/controller-runtime/tools/setup-envtest@$(SETUP_ENVTEST_VERSION) use -p path --bin-dir $(BIN)/envtest $(ENVTEST_K8S_VERSION))
 
-$(shell mkdir -p "$(OUT)")
-export TEST_ASSET_ETCD=_test/kubebuilder/bin/etcd
-export TEST_ASSET_KUBE_APISERVER=_test/kubebuilder/bin/kube-apiserver
-export TEST_ASSET_KUBECTL=_test/kubebuilder/bin/kubectl
+.PHONY: all
+all: lint test chart-test
 
-test: _test/kubebuilder
-	go test -v .
+.PHONY: test
+test: ## Unit tests and the offline cert-manager conformance suite.
+	@assets="$(ENVTEST_ASSETS)"; \
+	TEST_ASSET_ETCD="$$assets/etcd" \
+	TEST_ASSET_KUBE_APISERVER="$$assets/kube-apiserver" \
+	TEST_ASSET_KUBECTL="$$assets/kubectl" \
+	go test -race -count=1 -tags conformance ./...
 
-_test/kubebuilder:
-	curl -fsSL https://go.kubebuilder.io/test-tools/$(KUBE_VERSION)/$(OS)/$(ARCH) -o kubebuilder-tools.tar.gz
-	mkdir -p _test/kubebuilder
-	tar -xvf kubebuilder-tools.tar.gz
-	mv kubebuilder/bin _test/kubebuilder/
-	rm kubebuilder-tools.tar.gz
-	rm -R kubebuilder
+.PHONY: unit
+unit: ## Unit tests only; needs no envtest binaries.
+	go test -race -count=1 ./...
 
-clean: clean-kubebuilder
+.PHONY: lint
+lint:
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./...
 
-clean-kubebuilder:
-	rm -Rf _test/kubebuilder
+.PHONY: chart-test
+chart-test: ## Lint, unit-test and schema-validate the chart (needs helm, kubeconform and docker).
+	@for values in $(CHART)/ci/*.yaml; do \
+		helm lint --strict -f $$values $(CHART) || exit 1; \
+		helm template porkbun $(CHART) -n cert-manager -f $$values | \
+			kubeconform -strict -summary \
+				-schema-location default \
+				-schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+			|| exit 1; \
+	done
+	docker run --rm -u $$(id -u):$$(id -g) -v $(CURDIR):/apps -w /apps $(HELM_UNITTEST_IMAGE) $(CHART)
 
-build:
-	podman build -t "$(IMAGE_NAME):$(IMAGE_TAG)" .
+.PHONY: image
+image:
+	docker build -t $(IMAGE) .
 
-.PHONY: rendered-manifest.yaml
-rendered-manifest.yaml:
-	helm template \
-	    --name porkbun-webhook \
-        --set image.repository=$(IMAGE_NAME) \
-        --set image.tag=$(IMAGE_TAG) \
-        deploy/porkbun-webhook > "$(OUT)/rendered-manifest.yaml"
+.PHONY: e2e
+e2e: ## Deploy into a throwaway kind cluster and smoke-test (needs docker, kind, helm, kubectl).
+	hack/e2e.sh
+
+.PHONY: clean
+clean:
+	chmod -R u+w $(BIN) 2>/dev/null || true
+	rm -rf $(BIN) _out

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":semanticPrefixFixDepsChoreOthers",
+    "helpers:pinGitHubActionDigests",
+    ":automergeMinor",
+    ":automergeDigest"
+  ],
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "platformAutomerge": false,
+  "postUpdateOptions": [
+    "gomodTidy",
+    "gomodUpdateImportPaths"
+  ],
+  "packageRules": [
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github actions",
+      "automerge": true
+    },
+    {
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "go dependencies"
+    },
+    {
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "groupName": "docker base images"
+    },
+    {
+      "matchDepNames": [
+        "go",
+        "golang"
+      ],
+      "groupName": "go toolchain"
+    },
+    {
+      "description": "k8s.io and sigs.k8s.io libraries must match what cert-manager is built against; they move with cert-manager through go mod tidy instead.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "k8s.io/**",
+        "sigs.k8s.io/**"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "major"
+      ],
+      "enabled": false
+    },
+    {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "groupName": "ci tools"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Tool versions annotated with a '# renovate: datasource=... depName=...' comment",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/",
+        "/^Makefile$/",
+        "/^hack/.+\\.sh$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\s+[A-Za-z_]+\\s*(?:\\?=|:|=\"\\$\\{[A-Z_]+:-)\\s*(?<currentValue>v?[0-9][^\\s\"}]*)"
+      ]
+    }
+  ]
+}
