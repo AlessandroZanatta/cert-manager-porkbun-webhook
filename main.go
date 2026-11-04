@@ -1,25 +1,23 @@
+// Command cert-manager-porkbun-webhook is a cert-manager ACME DNS01 webhook
+// solver for Porkbun.
 package main
 
 import (
 	"os"
 
 	"github.com/cert-manager/cert-manager/pkg/acme/webhook/cmd"
-	klog "k8s.io/klog/v2"
+	"k8s.io/klog/v2"
 
-	"github.com/mdonoughe/cert-manager-porkbun/porkbun"
+	"github.com/AlessandroZanatta/cert-manager-porkbun-webhook/porkbun"
 )
 
-var GroupName = os.Getenv("GROUP_NAME")
-
 func main() {
-	if GroupName == "" {
+	groupName := os.Getenv("GROUP_NAME")
+	if groupName == "" {
 		klog.Fatal("GROUP_NAME must be specified")
 	}
 
-	// This will register our custom DNS provider with the webhook serving
-	// library, making it available as an API under the provided GroupName.
-	// You can register multiple DNS provider implementations with a single
-	// webhook, where the Name() method will be used to disambiguate between
-	// the different implementations.
-	cmd.RunWebhookServer(GroupName, porkbun.New())
+	// Registers the solver with the webhook API server under groupName.
+	// Issuers select it with webhook.groupName and webhook.solverName.
+	cmd.RunWebhookServer(groupName, porkbun.New())
 }
