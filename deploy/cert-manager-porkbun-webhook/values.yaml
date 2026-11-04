@@ -1,0 +1,98 @@
+# -- API group the webhook serves. Issuers reference it in
+# `webhook.groupName`. Must be unique in the cluster, so use a domain you own,
+# e.g. `acme.example.com`. Required.
+groupName: ""
+
+certManager:
+  # -- Namespace cert-manager runs in.
+  namespace: cert-manager
+  # -- ServiceAccount cert-manager runs as; it is allowed to call the webhook.
+  serviceAccountName: cert-manager
+
+# -- Secrets holding Porkbun credentials the webhook may read. Credentials of
+# a ClusterIssuer are read from cert-manager's cluster resource namespace
+# (by default `certManager.namespace`), those of an Issuer from the Issuer's
+# namespace. An empty `namespace` means `certManager.namespace`.
+secretAccess:
+  - namespace: ""
+    names:
+      - porkbun-key
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/alessandrozanatta/cert-manager-porkbun-webhook
+  # -- Defaults to `v` + the chart appVersion.
+  tag: ""
+  # -- Image digest (`sha256:...`). Takes precedence over `tag` when set.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Create a ServiceAccount. If false, `name` must already exist.
+  create: true
+  # -- Defaults to the release fullname.
+  name: ""
+  annotations: {}
+
+# -- klog verbosity of the webhook.
+logLevel: 2
+
+# -- Port the webhook listens on inside the pod.
+securePort: 8443
+
+# -- Extra command line arguments.
+extraArgs: []
+
+# -- Extra environment variables.
+extraEnv: []
+
+service:
+  type: ClusterIP
+  port: 443
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+podDisruptionBudget:
+  # -- Create a PodDisruptionBudget. Only useful with replicaCount > 1.
+  enabled: false
+  minAvailable: 1
+
+pki:
+  # -- Lifetime of the self-signed CA that signs the webhook serving certificate.
+  caDuration: 43800h # 5y
+  # -- Lifetime of the webhook serving certificate. cert-manager renews it.
+  servingCertificateDuration: 8760h # 1y

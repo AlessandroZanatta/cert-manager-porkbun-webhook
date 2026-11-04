@@ -1,0 +1,81 @@
+suite: rbac
+templates:
+  - rbac.yaml
+release:
+  name: porkbun
+  namespace: cert-manager
+set:
+  groupName: acme.example.com
+tests:
+  - it: lets cert-manager call the solver API
+    documentSelector:
+      path: rules[0].verbs[0]
+      value: create
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - equal:
+          path: rules[0].apiGroups
+          value: [acme.example.com]
+
+  - it: binds the solver API role to cert-manager
+    documentSelector:
+      path: roleRef.name
+      value: porkbun-cert-manager-porkbun-webhook:domain-solver
+    asserts:
+      - equal:
+          path: subjects
+          value:
+            - kind: ServiceAccount
+              name: cert-manager
+              namespace: cert-manager
+
+  - it: grants read access to the default credentials secret
+    documentSelector:
+      path: kind
+      value: Role
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: cert-manager
+      - equal:
+          path: rules[0].resourceNames
+          value: [porkbun-key]
+
+  - it: renders all RBAC objects
+    asserts:
+      - hasDocuments:
+          count: 8
+
+  - it: grants secret access per namespace
+    set:
+      secretAccess:
+        - names: [a]
+        - namespace: team-b
+          names: [b, c]
+    asserts:
+      - hasDocuments:
+          count: 10
+
+  - it: scopes extra secret access to its namespace
+    set:
+      secretAccess:
+        - namespace: team-b
+          names: [b, c]
+    documentSelector:
+      path: kind
+      value: Role
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: team-b
+      - equal:
+          path: rules[0].resourceNames
+          value: [b, c]
+
+  - it: can grant no secret access
+    set:
+      secretAccess: []
+    asserts:
+      - hasDocuments:
+          count: 6

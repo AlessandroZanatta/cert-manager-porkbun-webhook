@@ -1,0 +1,137 @@
+{{- $fullname := include "porkbun-webhook.fullname" . -}}
+{{- $sa := include "porkbun-webhook.serviceAccountName" . -}}
+# Lets the webhook read the apiserver's requestheader CA, which the aggregation
+# layer uses to authenticate requests forwarded to it.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}:webhook-authentication-reader
+  namespace: kube-system
+  labels:
+    {{- include "porkbun-webhook.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ $sa }}
+    namespace: {{ .Release.Namespace }}
+---
+# Lets the webhook delegate authentication and authorization decisions to the
+# core apiserver.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $fullname }}:auth-delegator
+  labels:
+    {{- include "porkbun-webhook.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: {{ $sa }}
+    namespace: {{ .Release.Namespace }}
+---
+# The embedded apiserver watches API Priority and Fairness configuration.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $fullname }}:flowcontrol-reader
+  labels:
+    {{- include "porkbun-webhook.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - flowcontrol.apiserver.k8s.io
+    resources:
+      - prioritylevelconfigurations
+      - flowschemas
+    verbs:
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $fullname }}:flowcontrol-reader
+  labels:
+    {{- include "porkbun-webhook.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $fullname }}:flowcontrol-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ $sa }}
+    namespace: {{ .Release.Namespace }}
+---
+# Lets cert-manager call the webhook's API.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $fullname }}:domain-solver
+  labels:
+    {{- include "porkbun-webhook.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - {{ include "porkbun-webhook.groupName" . }}
+    resources:
+      - "*"
+    verbs:
+      - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $fullname }}:domain-solver
+  labels:
+    {{- include "porkbun-webhook.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $fullname }}:domain-solver
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.certManager.serviceAccountName }}
+    namespace: {{ .Values.certManager.namespace }}
+{{- range .Values.secretAccess }}
+{{- $namespace := default $.Values.certManager.namespace .namespace }}
+{{- if .names }}
+---
+# Lets the webhook read the Porkbun credentials in {{ $namespace }}.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}:secret-reader
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "porkbun-webhook.labels" $ | nindent 4 }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    resourceNames:
+      {{- toYaml .names | nindent 6 }}
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}:secret-reader
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "porkbun-webhook.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}:secret-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ $sa }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}

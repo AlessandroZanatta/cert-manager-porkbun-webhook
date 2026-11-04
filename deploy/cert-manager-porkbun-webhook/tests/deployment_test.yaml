@@ -1,0 +1,123 @@
+suite: deployment
+templates:
+  - deployment.yaml
+release:
+  name: porkbun
+  namespace: cert-manager
+set:
+  groupName: acme.example.com
+tests:
+  - it: fails without groupName
+    set:
+      groupName: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: groupName is required
+
+  - it: defaults the image tag to the chart appVersion
+    chart:
+      appVersion: 1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/alessandrozanatta/cert-manager-porkbun-webhook:v1.2.3
+
+  - it: prefers digest over tag
+    set:
+      image.tag: v9.9.9
+      image.digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/alessandrozanatta/cert-manager-porkbun-webhook@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+  - it: passes the group name and serving flags
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GROUP_NAME
+            value: acme.example.com
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --secure-port=8443
+            - --tls-cert-file=/tls/tls.crt
+            - --tls-private-key-file=/tls/tls.key
+            - --v=2
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8443
+
+  - it: runs hardened by default
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value: [ALL]
+
+  - it: keeps selector labels stable
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: cert-manager-porkbun-webhook
+            app.kubernetes.io/instance: porkbun
+      - equal:
+          path: metadata.name
+          value: porkbun-cert-manager-porkbun-webhook
+
+  - it: mounts the serving certificate
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: certs
+            secret:
+              secretName: porkbun-cert-manager-porkbun-webhook-webhook-tls
+
+  - it: applies replicaCount and extras
+    set:
+      replicaCount: 3
+      extraArgs: [--profiling=false]
+      extraEnv:
+        - name: FOO
+          value: bar
+      podLabels:
+        team: platform
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --profiling=false
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FOO
+            value: bar
+      - equal:
+          path: spec.template.metadata.labels.team
+          value: platform
+
+  - it: uses an existing service account
+    set:
+      serviceAccount.create: false
+      serviceAccount.name: existing
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: existing
+
+  - it: requires a service account name when not creating one
+    set:
+      serviceAccount.create: false
+    asserts:
+      - failedTemplate:
+          errorPattern: serviceAccount.name is required

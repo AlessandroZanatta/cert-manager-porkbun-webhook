@@ -1,0 +1,25 @@
+The Porkbun DNS01 solver is served as API group {{ include "porkbun-webhook.groupName" . }}.
+
+1. Store your Porkbun API credentials (https://porkbun.com/account/api) in a
+   Secret the webhook may read (see `secretAccess`), for a ClusterIssuer in
+   namespace {{ .Values.certManager.namespace }}:
+
+     kubectl -n {{ .Values.certManager.namespace }} create secret generic porkbun-key \
+       --from-literal=api-key=pk1_... --from-literal=secret-key=sk1_...
+
+2. Reference the solver from an Issuer or ClusterIssuer:
+
+     solvers:
+       - dns01:
+           webhook:
+             groupName: {{ include "porkbun-webhook.groupName" . }}
+             solverName: porkbun
+             config:
+               apiKeySecretRef:
+                 name: porkbun-key
+                 key: api-key
+               secretKeySecretRef:
+                 name: porkbun-key
+                 key: secret-key
+
+Remember to enable API access for each domain in the Porkbun dashboard.

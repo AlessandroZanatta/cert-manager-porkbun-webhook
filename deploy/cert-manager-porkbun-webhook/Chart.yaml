@@ -1,0 +1,21 @@
+apiVersion: v2
+name: cert-manager-porkbun-webhook
+description: cert-manager ACME DNS01 webhook solver for Porkbun.
+type: application
+# Both versions are bumped together by release-please; do not edit by hand.
+version: 0.1.5 # x-release-please-version
+appVersion: "0.1.5" # x-release-please-version
+kubeVersion: ">=1.27.0-0"
+home: https://github.com/AlessandroZanatta/cert-manager-porkbun-webhook
+sources:
+  - https://github.com/AlessandroZanatta/cert-manager-porkbun-webhook
+keywords:
+  - cert-manager
+  - acme
+  - dns01
+  - porkbun
+maintainers:
+  - name: AlessandroZanatta
+    url: https://github.com/AlessandroZanatta
+annotations:
+  artifacthub.io/license: Apache-2.0

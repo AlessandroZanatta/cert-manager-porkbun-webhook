@@ -1,0 +1,39 @@
+groupName: acme.example.com
+replicaCount: 2
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+imagePullSecrets:
+  - name: regcred
+serviceAccount:
+  annotations:
+    example.com/annotation: "true"
+secretAccess:
+  - names: [porkbun-key]
+  - namespace: team-a
+    names: [porkbun-a, porkbun-b]
+logLevel: 4
+extraArgs:
+  - --profiling=false
+extraEnv:
+  - name: FOO
+    value: bar
+podAnnotations:
+  example.com/annotation: "true"
+podLabels:
+  team: platform
+priorityClassName: system-cluster-critical
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations:
+  - key: dedicated
+    operator: Exists
+    effect: NoSchedule
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/instance: "{{ .Release.Name }}"
+podDisruptionBudget:
+  enabled: true

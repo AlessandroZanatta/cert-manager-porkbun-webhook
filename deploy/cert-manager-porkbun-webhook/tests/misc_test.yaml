@@ -1,0 +1,75 @@
+suite: misc
+release:
+  name: porkbun
+  namespace: cert-manager
+set:
+  groupName: acme.example.com
+tests:
+  - it: registers the APIService with CA injection
+    template: apiservice.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: v1alpha1.acme.example.com
+      - equal:
+          path: metadata.annotations["cert-manager.io/inject-ca-from"]
+          value: cert-manager/porkbun-cert-manager-porkbun-webhook-webhook-tls
+      - equal:
+          path: spec.service
+          value:
+            name: porkbun-cert-manager-porkbun-webhook
+            namespace: cert-manager
+            port: 443
+
+  - it: points the service at the pods
+    template: service.yaml
+    asserts:
+      - equal:
+          path: spec.selector
+          value:
+            app.kubernetes.io/name: cert-manager-porkbun-webhook
+            app.kubernetes.io/instance: porkbun
+      - equal:
+          path: spec.ports[0].targetPort
+          value: https
+
+  - it: issues a serving certificate for the service names
+    template: pki.yaml
+    documentSelector:
+      path: spec.secretName
+      value: porkbun-cert-manager-porkbun-webhook-webhook-tls
+    asserts:
+      - isKind:
+          of: Certificate
+      - equal:
+          path: spec.dnsNames
+          value:
+            - porkbun-cert-manager-porkbun-webhook
+            - porkbun-cert-manager-porkbun-webhook.cert-manager
+            - porkbun-cert-manager-porkbun-webhook.cert-manager.svc
+
+  - it: has no PodDisruptionBudget by default
+    template: pdb.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a PodDisruptionBudget when enabled
+    template: pdb.yaml
+    set:
+      podDisruptionBudget.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+
+  - it: skips the service account when not created
+    template: serviceaccount.yaml
+    set:
+      serviceAccount.create: false
+      serviceAccount.name: existing
+    asserts:
+      - hasDocuments:
+          count: 0
