@@ -89,6 +89,10 @@ jobs:
 
       - name: Unit test
         uses: docker://helmunittest/helm-unittest:4.3.0-1.2.1
+        env:
+          # The image runs as a non-root user that cannot write to the
+          # /github/home mount, and Helm 4 skips plugins without a cache dir.
+          HELM_CACHE_HOME: /tmp/helm/cache
         with:
           args: deploy/cert-manager-porkbun-webhook
 
