@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/AlessandroZanatta/cert-manager-porkbun-webhook/compare/v1.0.0...v1.0.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **chart:** default image tag to appVersion without v prefix ([d5a16d9](https://github.com/AlessandroZanatta/cert-manager-porkbun-webhook/commit/d5a16d91686dc11b3d719fac063bbf34b40e5d35))
+
 ## [1.0.0](https://github.com/AlessandroZanatta/cert-manager-porkbun-webhook/compare/v0.1.5...v1.0.0) (2026-11-05)
 
 
