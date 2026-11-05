@@ -45,7 +45,7 @@ chart-test: ## Lint, unit-test and schema-validate the chart (needs helm, kubeco
 				-schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
 			|| exit 1; \
 	done
-	docker run --rm -u $$(id -u):$$(id -g) -v $(CURDIR):/apps -w /apps $(HELM_UNITTEST_IMAGE) $(CHART)
+	docker run --rm -u $$(id -u):$$(id -g) -e HELM_CACHE_HOME=/tmp/helm/cache -v $(CURDIR):/apps -w /apps $(HELM_UNITTEST_IMAGE) $(CHART)
 
 .PHONY: image
 image:

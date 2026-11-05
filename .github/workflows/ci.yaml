@@ -75,26 +75,8 @@ jobs:
       - name: Install kubeconform
         run: go install "github.com/yannh/kubeconform/cmd/kubeconform@${KUBECONFORM_VERSION}"
 
-      - name: Lint and validate rendered manifests
-        run: |
-          for values in deploy/cert-manager-porkbun-webhook/ci/*.yaml; do
-            echo "::group::$values"
-            helm lint --strict -f "$values" deploy/cert-manager-porkbun-webhook
-            helm template porkbun deploy/cert-manager-porkbun-webhook -n cert-manager -f "$values" |
-              kubeconform -strict -summary \
-                -schema-location default \
-                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
-            echo "::endgroup::"
-          done
-
-      - name: Unit test
-        uses: docker://helmunittest/helm-unittest:4.3.0-1.2.1
-        env:
-          # The image runs as a non-root user that cannot write to the
-          # /github/home mount, and Helm 4 skips plugins without a cache dir.
-          HELM_CACHE_HOME: /tmp/helm/cache
-        with:
-          args: deploy/cert-manager-porkbun-webhook
+      - name: Lint, unit-test and validate
+        run: make chart-test
 
   docker:
     name: Docker build
