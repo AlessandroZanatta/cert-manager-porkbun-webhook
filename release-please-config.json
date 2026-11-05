@@ -1,73 +1,72 @@
 {
-  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-  "packages": {
-    ".": {
-      "release-type": "go",
-      "package-name": "cert-manager-porkbun-webhook",
-      "release-as": "1.0.0",
-      "changelog-path": "CHANGELOG.md",
-      "include-v-in-tag": true,
-      "include-component-in-tag": false,
-      "extra-files": [
-        {
-          "type": "generic",
-          "path": "README.md"
-        },
-        {
-          "type": "generic",
-          "path": "deploy/cert-manager-porkbun-webhook/Chart.yaml"
-        }
-      ],
-      "changelog-sections": [
-        {
-          "type": "feat",
-          "section": "Features"
-        },
-        {
-          "type": "fix",
-          "section": "Bug Fixes"
-        },
-        {
-          "type": "perf",
-          "section": "Performance"
-        },
-        {
-          "type": "refactor",
-          "section": "Refactoring"
-        },
-        {
-          "type": "docs",
-          "section": "Documentation"
-        },
-        {
-          "type": "deps",
-          "section": "Dependencies"
-        },
-        {
-          "type": "build",
-          "section": "Build"
-        },
-        {
-          "type": "ci",
-          "section": "Continuous Integration",
-          "hidden": true
-        },
-        {
-          "type": "test",
-          "section": "Tests",
-          "hidden": true
-        },
-        {
-          "type": "chore",
-          "section": "Chores",
-          "hidden": true
-        },
-        {
-          "type": "style",
-          "section": "Styling",
-          "hidden": true
-        }
-      ]
-    }
-  }
+	"$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+	"packages": {
+		".": {
+			"release-type": "go",
+			"package-name": "cert-manager-porkbun-webhook",
+			"changelog-path": "CHANGELOG.md",
+			"include-v-in-tag": true,
+			"include-component-in-tag": false,
+			"extra-files": [
+				{
+					"type": "generic",
+					"path": "README.md"
+				},
+				{
+					"type": "generic",
+					"path": "deploy/cert-manager-porkbun-webhook/Chart.yaml"
+				}
+			],
+			"changelog-sections": [
+				{
+					"type": "feat",
+					"section": "Features"
+				},
+				{
+					"type": "fix",
+					"section": "Bug Fixes"
+				},
+				{
+					"type": "perf",
+					"section": "Performance"
+				},
+				{
+					"type": "refactor",
+					"section": "Refactoring"
+				},
+				{
+					"type": "docs",
+					"section": "Documentation"
+				},
+				{
+					"type": "deps",
+					"section": "Dependencies"
+				},
+				{
+					"type": "build",
+					"section": "Build"
+				},
+				{
+					"type": "ci",
+					"section": "Continuous Integration",
+					"hidden": true
+				},
+				{
+					"type": "test",
+					"section": "Tests",
+					"hidden": true
+				},
+				{
+					"type": "chore",
+					"section": "Chores",
+					"hidden": true
+				},
+				{
+					"type": "style",
+					"section": "Styling",
+					"hidden": true
+				}
+			]
+		}
+	}
 }
