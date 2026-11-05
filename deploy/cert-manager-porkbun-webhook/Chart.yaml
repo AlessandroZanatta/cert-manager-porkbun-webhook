@@ -3,8 +3,8 @@ name: cert-manager-porkbun-webhook
 description: cert-manager ACME DNS01 webhook solver for Porkbun.
 type: application
 # Both versions are bumped together by release-please; do not edit by hand.
-version: 1.0.0 # x-release-please-version
-appVersion: "1.0.0" # x-release-please-version
+version: 1.0.1 # x-release-please-version
+appVersion: "1.0.1" # x-release-please-version
 kubeVersion: ">=1.27.0-0"
 home: https://github.com/AlessandroZanatta/cert-manager-porkbun-webhook
 sources:
