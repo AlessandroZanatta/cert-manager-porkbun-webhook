@@ -19,7 +19,7 @@ chart and the image share one version.
 ```sh
 helm install porkbun-webhook \
   oci://ghcr.io/alessandrozanatta/charts/cert-manager-porkbun-webhook \
-  --version 0.1.5 \
+  --version 1.0.0 \
   --namespace cert-manager \
   --set groupName=acme.example.com
 ```
@@ -33,7 +33,7 @@ helm install porkbun-webhook \
 helmCharts:
   - name: cert-manager-porkbun-webhook
     repo: oci://ghcr.io/alessandrozanatta/charts
-    version: 0.1.5
+    version: 1.0.0
     releaseName: porkbun-webhook
     namespace: cert-manager
     valuesInline:
