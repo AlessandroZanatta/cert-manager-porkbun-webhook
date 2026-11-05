@@ -22,7 +22,7 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/alessandrozanatta/cert-manager-porkbun-webhook
-  # -- Defaults to `v` + the chart appVersion.
+  # -- Defaults to the chart appVersion.
   tag: ""
   # -- Image digest (`sha256:...`). Takes precedence over `tag` when set.
   digest: ""
